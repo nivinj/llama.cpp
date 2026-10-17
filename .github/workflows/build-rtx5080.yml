@@ -1,40 +1,46 @@
-name: Build llama.cpp (RTX 5080 / Blackwell)
+name: Build llama.cpp (Lean RTX 5080)
 
 on:
-  workflow_dispatch: # Allows you to manually trigger the build from the Actions tab
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: windows-latest
+  cuda:
+    name: windows-cuda (13.4, x64)
+    runs-on: windows-2022
+
     steps:
-      - name: Checkout Repository
+      - name: Clone
         uses: actions/checkout@v4
 
-      - name: Install CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.19
-        id: cuda-toolkit
+      - name: Install Cuda Toolkit
+        uses: ./.github/actions/windows-setup-cuda
         with:
-          cuda: '13.2.0'
+          cuda_version: '13.4'
+          cuda_arch: 'x64'
 
-      - name: Configure CMake
+      - name: Install Ninja
+        run: choco install ninja
+
+      - name: Build
+        shell: cmd
         run: |
-          cmake -B build -G "Visual Studio 18 2026" -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=120
-          
-      - name: Build Binary
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          cmake -S . -B build -G "Ninja Multi-Config" ^
+            -DGGML_CUDA=ON ^
+            -DCMAKE_CUDA_ARCHITECTURES=120
+          set /A NINJA_JOBS=%NUMBER_OF_PROCESSORS%-1
+          cmake --build build --config Release -j %NINJA_JOBS%
+
+      - name: Gather CUDA Runtime DLLs
+        shell: pwsh
         run: |
-          cmake --build build --config Release -j 4
-          
-      - name: Gather Runtime Dependencies
-        run: |
-          # Copy the required CUDA runtime DLL so it works portably on your PC
-          Copy-Item "${{steps.cuda-toolkit.outputs.CUDA_PATH}}/bin/cudart64_13*.dll" -Destination "build/bin/Release/"
-          Copy-Item "${{steps.cuda-toolkit.outputs.CUDA_PATH}}/bin/cublas64_13*.dll" -Destination "build/bin/Release/"
-          Copy-Item "${{steps.cuda-toolkit.outputs.CUDA_PATH}}/bin/cublasLt64_13*.dll" -Destination "build/bin/Release/"
-          
+          $CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4"
+          Copy-Item "$CUDA_PATH\bin\cudart64_13*.dll" -Destination "build\bin\Release\"
+          Copy-Item "$CUDA_PATH\bin\cublas64_13*.dll" -Destination "build\bin\Release\"
+          Copy-Item "$CUDA_PATH\bin\cublasLt64_13*.dll" -Destination "build\bin\Release\"
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: llama-server-rtx5080
-          path: |
-            build/bin/Release/llama-server.exe
-            build/bin/Release/*.dll
+          path: build\bin\Release\
