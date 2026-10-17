@@ -10,11 +10,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install CUDA Toolkit 13.1
+      - name: Install CUDA Toolkit
         uses: Jimver/cuda-toolkit@v0.2.19
         id: cuda-toolkit
         with:
-          cuda: '13.1.0'
+          cuda: '13.2.0'
 
       - name: Configure CMake
         run: |
