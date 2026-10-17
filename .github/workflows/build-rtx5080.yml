@@ -1,0 +1,40 @@
+name: Build llama.cpp (RTX 5080 / Blackwell)
+
+on:
+  workflow_dispatch: # Allows you to manually trigger the build from the Actions tab
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install CUDA Toolkit 13.1
+        uses: Jimver/cuda-toolkit@v0.2.19
+        id: cuda-toolkit
+        with:
+          cuda: '13.1.0'
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Visual Studio 18 2026" -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=120
+          
+      - name: Build Binary
+        run: |
+          cmake --build build --config Release -j 4
+          
+      - name: Gather Runtime Dependencies
+        run: |
+          # Copy the required CUDA runtime DLL so it works portably on your PC
+          Copy-Item "${{steps.cuda-toolkit.outputs.CUDA_PATH}}/bin/cudart64_13*.dll" -Destination "build/bin/Release/"
+          Copy-Item "${{steps.cuda-toolkit.outputs.CUDA_PATH}}/bin/cublas64_13*.dll" -Destination "build/bin/Release/"
+          Copy-Item "${{steps.cuda-toolkit.outputs.CUDA_PATH}}/bin/cublasLt64_13*.dll" -Destination "build/bin/Release/"
+          
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-server-rtx5080
+          path: |
+            build/bin/Release/llama-server.exe
+            build/bin/Release/*.dll
